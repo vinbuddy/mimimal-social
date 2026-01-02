@@ -50,7 +50,8 @@
 
 -   Post feed
   
-![image](https://github.com/user-attachments/assets/d617b8ca-bbfb-4a1a-a420-90421d5f6f55)
+<img width="849" height="972" alt="image" src="https://github.com/user-attachments/assets/fa19eb92-1305-49fe-bd82-bfce121c1f0b" />
+
 
 -   View post detail
   
@@ -116,6 +117,7 @@
 -  Crop avatar 
 
 ![image](https://github.com/user-attachments/assets/e5f1552c-5fb0-4953-a550-92da71775a15)
+
 
 
 
