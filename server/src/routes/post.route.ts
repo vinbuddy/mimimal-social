@@ -33,7 +33,7 @@ router.post("/un-repost", verifyToken, unRepostHandler);
 router.get("/user-liked/:id", verifyToken, getUsersLikedPostHandler);
 router.get("/user-reposted/:id", verifyToken, getUsersRepostedPostHandler);
 
-router.get("/:id", verifyToken, getPostDetailHandler);
+router.get("/:id", getPostDetailHandler);
 
 router.delete("/:id", verifyToken, deletePostHandler);
 router.post("/like", verifyToken, likePostHandler);

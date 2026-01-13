@@ -18,6 +18,7 @@ import FullScreenMediaSlider from "../media/fullscreen-media-slider";
 import PostActivitiesModalButton from "./post-activities-modal-button";
 
 import { useVisibility } from "@/hooks";
+import { useAuthStore } from "@/hooks/store";
 import { useTranslation } from "react-i18next";
 import { TranslationNameSpace } from "@/types/translation";
 
@@ -30,6 +31,7 @@ export default function PostDetail({ post }: IProps) {
     const [activeIndex, setActiveIndex] = useState<number>(0);
     const [openEditModal, setOpenEditModal] = useState<boolean>(false);
     const { t: tPost } = useTranslation<TranslationNameSpace>("post");
+    const { isAuthenticated } = useAuthStore();
 
     const handleMediaFileClick = (index: number) => {
         setActiveIndex(index);
@@ -105,17 +107,21 @@ export default function PostDetail({ post }: IProps) {
                         <TimeAgo className="text-sm" date={post?.createdAt} />
                     </div>
 
-                    {/* Menu */}
-                    <div className="flex flex-col justify-center">
-                        <PostMenuDropdown onOpenEditModal={handleToggleEditModal} post={post}>
-                            <button className="outline-none rounded-full z-[1]">
-                                <EllipsisIcon size={16} />
-                            </button>
-                        </PostMenuDropdown>
-                    </div>
-                    <PostModalButton post={post} open={openEditModal} setOpen={setOpenEditModal} actionType="edit">
-                        <div></div>
-                    </PostModalButton>
+                    {/* Menu - Only show for authenticated users */}
+                    {isAuthenticated && (
+                        <>
+                            <div className="flex flex-col justify-center">
+                                <PostMenuDropdown onOpenEditModal={handleToggleEditModal} post={post}>
+                                    <button className="outline-none rounded-full z-[1]">
+                                        <EllipsisIcon size={16} />
+                                    </button>
+                                </PostMenuDropdown>
+                            </div>
+                            <PostModalButton post={post} open={openEditModal} setOpen={setOpenEditModal} actionType="edit">
+                                <div></div>
+                            </PostModalButton>
+                        </>
+                    )}
                 </div>
             </section>
             <section className="mt-4">
@@ -130,15 +136,17 @@ export default function PostDetail({ post }: IProps) {
                 <div className="mt-2 flex items-center justify-between">
                     <PostActions post={post} />
 
-                    <PostActivitiesModalButton
-                        post={post}
-                        size="sm"
-                        variant="light"
-                        radius="full"
-                        className="text-default-500 text-sm px-3 cursor-pointer"
-                    >
-                        {tPost("POST_DETAIL.SEE_ACTIVITY")}
-                    </PostActivitiesModalButton>
+                    {isAuthenticated && (
+                        <PostActivitiesModalButton
+                            post={post}
+                            size="sm"
+                            variant="light"
+                            radius="full"
+                            className="text-default-500 text-sm px-3 cursor-pointer"
+                        >
+                            {tPost("POST_DETAIL.SEE_ACTIVITY")}
+                        </PostActivitiesModalButton>
+                    )}
                 </div>
             </section>
         </div>

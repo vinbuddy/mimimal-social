@@ -11,8 +11,8 @@ import { verifyToken } from "../middlewares/verify-token.middleware";
 
 const router: Router = express.Router();
 
-router.get("/", verifyToken, getCommentsByTargetHandler);
-router.get("/reply", verifyToken, getRepliesHandler);
+router.get("/", getCommentsByTargetHandler);
+router.get("/reply", getRepliesHandler);
 router.post("/", verifyToken, createCommentHandler);
 router.delete("/:id", verifyToken, deleteCommentHandler);
 

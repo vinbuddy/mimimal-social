@@ -6,7 +6,7 @@ import useAuthStore from "../hooks/store/use-auth-store";
 import { IUser } from "../types/user";
 import { PageLoading, PageSlowLoading } from "@/components";
 import dynamic from "next/dynamic";
-import { PUBLIC_ROUTES } from "@/constants/route";
+import { PUBLIC_ROUTES, isPublicRoute } from "@/constants/route";
 import { ENV } from "@/config/env";
 
 export const AuthContext = createContext({});
@@ -66,21 +66,21 @@ const AuthContextProvider = ({ children }: { children: any }) => {
     const handleAuthenticatedUser = (user: IUser) => {
         useAuthStore.setState({ currentUser: user, isAuthenticated: true });
 
-        const isPublicRoute = PUBLIC_ROUTES.includes(pathName);
+        const isPublic = isPublicRoute(pathName);
 
-        if (user.isAdmin && isPublicRoute) {
+        if (user.isAdmin && isPublic) {
             return router.push("/admin");
         }
 
-        if (isPublicRoute) {
+        if (isPublic) {
             return router.push("/");
         }
     };
 
     const handleUnauthenticatedUser = () => {
-        const isPublicRoute = PUBLIC_ROUTES.includes(pathName);
+        const isPublic = isPublicRoute(pathName);
 
-        if (!isPublicRoute) {
+        if (!isPublic) {
             return router.push("/login");
         }
     };

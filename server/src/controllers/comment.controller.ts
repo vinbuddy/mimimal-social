@@ -58,27 +58,31 @@ export async function getCommentsByTargetHandler(_req: Request, res: Response, n
         const page = Number(req.query.page) ?? 1;
         const limit = Number(req.query.limit) ?? 15;
 
-        // Me: Blocked some users
-        const currentUserId = req.user._id?.toString();
-        const currentUser = await UserModel.findById(currentUserId);
-        const blockedUsers = currentUser?.blockedUsers ?? [];
-
-        // Users: Blocked me
-        const blockedByUsers = await UserModel.find({
-            blockedUsers: {
-                $in: [new mongoose.Types.ObjectId(currentUserId)],
-            },
-        }).distinct("_id");
-
-        const condition = {
+        // Build condition based on authentication status
+        let condition: any = {
             target: new mongoose.Types.ObjectId(target),
             targetType: targetType,
             replyTo: null,
-            $or: [
+        };
+
+        // If user is authenticated, filter out blocked users
+        if (req.user?._id) {
+            const currentUserId = req.user._id.toString();
+            const currentUser = await UserModel.findById(currentUserId);
+            const blockedUsers = currentUser?.blockedUsers ?? [];
+
+            // Users: Blocked me
+            const blockedByUsers = await UserModel.find({
+                blockedUsers: {
+                    $in: [new mongoose.Types.ObjectId(currentUserId)],
+                },
+            }).distinct("_id");
+
+            condition.$or = [
                 { commentBy: currentUser?._id }, // Include my posts
                 { commentBy: { $nin: [...blockedUsers, ...blockedByUsers] } }, // Exclude posts from both blocked and blocking users
-            ],
-        };
+            ];
+        }
 
         const skip = (Number(page) - 1) * limit;
         const totalComments = await CommentModel.countDocuments(condition);
@@ -155,25 +159,29 @@ export async function getRepliesHandler(_req: Request, res: Response, next: Next
         const page = Number(req.query.page) ?? 1;
         const limit = Number(req.query.limit) ?? 15;
 
-        // Me: Blocked some users
-        const currentUserId = req.user._id?.toString();
-        const currentUser = await UserModel.findById(currentUserId);
-        const blockedUsers = currentUser?.blockedUsers ?? [];
-
-        // Users: Blocked me
-        const blockedByUsers = await UserModel.find({
-            blockedUsers: {
-                $in: [new mongoose.Types.ObjectId(currentUserId)],
-            },
-        }).distinct("_id");
-
-        const condition = {
+        // Build condition based on authentication status
+        let condition: any = {
             rootComment: new mongoose.Types.ObjectId(rootComment),
-            $or: [
+        };
+
+        // If user is authenticated, filter out blocked users
+        if (req.user?._id) {
+            const currentUserId = req.user._id.toString();
+            const currentUser = await UserModel.findById(currentUserId);
+            const blockedUsers = currentUser?.blockedUsers ?? [];
+
+            // Users: Blocked me
+            const blockedByUsers = await UserModel.find({
+                blockedUsers: {
+                    $in: [new mongoose.Types.ObjectId(currentUserId)],
+                },
+            }).distinct("_id");
+
+            condition.$or = [
                 { commentBy: currentUser?._id }, // Include my posts
                 { commentBy: { $nin: [...blockedUsers, ...blockedByUsers] } }, // Exclude posts from both blocked and blocking users
-            ],
-        };
+            ];
+        }
 
         const skip = (Number(page) - 1) * limit;
         const totalComments = await CommentModel.countDocuments(condition);

@@ -9,12 +9,14 @@ import { CommentForm, CommentItem } from "@/components/comment";
 import { PostDetail } from "@/components/post";
 
 import { usePagination } from "@/hooks";
+import { useAuthStore } from "@/hooks/store";
 import { IComment } from "@/types/comment";
 import { IPost } from "@/types/post";
 
 export default function PostPage({ params }: { params: { id: string } }) {
     const { data, error } = useSWR(`/post/${params.id}`);
     const post = data?.data as IPost;
+    const { currentUser, isAuthenticated } = useAuthStore();
 
     const {
         data: comments,
@@ -57,13 +59,15 @@ export default function PostPage({ params }: { params: { id: string } }) {
                 <main className="px-4 pb-4 mt-4">
                     <PostDetail post={post} />
 
-                    <div
-                        className={`mt-4 sticky top-[79px] z-[1] pt-3 pb-6 bg-background border-divider ${
-                            comments.length > 0 && "border-b"
-                        }`}
-                    >
-                        <CommentForm target={post} targetType="Post" />
-                    </div>
+                    {isAuthenticated && (
+                        <div
+                            className={`mt-4 sticky top-[79px] z-[1] pt-3 pb-6 bg-background border-divider ${
+                                comments.length > 0 && "border-b"
+                            }`}
+                        >
+                            <CommentForm target={post} targetType="Post" />
+                        </div>
+                    )}
 
                     <div className="flex flex-col mt-4">
                         {commentError && !isLoading && (

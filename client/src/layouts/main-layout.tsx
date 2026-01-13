@@ -44,7 +44,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const [mounted, setMounted] = useState<boolean>(false);
     const [isNotification, setIsNotification] = useState<boolean>(false);
     const { theme, setTheme } = useTheme();
-    const { currentUser } = useAuthStore();
+    const { currentUser, isAuthenticated } = useAuthStore();
     const { startLoading, stopLoading } = useLoading();
     const router = useRouter();
     const pathName = usePathname();
@@ -129,19 +129,40 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                         </Link>
                     </header>
                 </nav>
-                <nav className="">
-                    <div className="flex flex-col items-center gap-4">
-                        {navLinks.map((navLink, index) => {
-                            let isActive = false;
-                            if (navLink.href === "/") {
-                                isActive = pathName === "/";
-                            } else {
-                                isActive = pathName.startsWith(navLink.href);
-                            }
-                            const Icon = navLink.icon(isActive);
-                            const activeColor = theme === "light" ? "!text-black" : "text-white";
+                {isAuthenticated && (
+                    <nav className="">
+                        <div className="flex flex-col items-center gap-4">
+                            {navLinks.map((navLink, index) => {
+                                let isActive = false;
+                                if (navLink.href === "/") {
+                                    isActive = pathName === "/";
+                                } else {
+                                    isActive = pathName.startsWith(navLink.href);
+                                }
+                                const Icon = navLink.icon(isActive);
+                                const activeColor = theme === "light" ? "!text-black" : "text-white";
 
-                            if (isNotification && navLink.href === "/notification") {
+                                if (isNotification && navLink.href === "/notification") {
+                                    return (
+                                        <Button
+                                            key={index}
+                                            size="lg"
+                                            title={navLink.content}
+                                            as={Link}
+                                            href={navLink.href}
+                                            radius="sm"
+                                            isIconOnly
+                                            color="default"
+                                            className={`${isActive ? activeColor : "text-default-400"}`}
+                                            variant="light"
+                                        >
+                                            <Badge content="" color="danger" shape="circle" placement="top-right">
+                                                {Icon}
+                                            </Badge>
+                                        </Button>
+                                    );
+                                }
+
                                 return (
                                     <Button
                                         key={index}
@@ -155,99 +176,92 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                                         className={`${isActive ? activeColor : "text-default-400"}`}
                                         variant="light"
                                     >
-                                        <Badge content="" color="danger" shape="circle" placement="top-right">
-                                            {Icon}
-                                        </Badge>
+                                        {Icon}
                                     </Button>
                                 );
-                            }
-
-                            return (
-                                <Button
-                                    key={index}
-                                    size="lg"
-                                    title={navLink.content}
-                                    as={Link}
-                                    href={navLink.href}
-                                    radius="sm"
-                                    isIconOnly
-                                    color="default"
-                                    className={`${isActive ? activeColor : "text-default-400"}`}
-                                    variant="light"
-                                >
-                                    {Icon}
-                                </Button>
-                            );
-                        })}
-                    </div>
-                </nav>
+                            })}
+                        </div>
+                    </nav>
+                )}
                 <nav className="flex flex-col items-center gap-4 px-2 py-4">
-                    <Dropdown placement="bottom-end">
-                        <DropdownTrigger>
-                            <Avatar
-                                isBordered
-                                as="button"
-                                className="transition-transform"
-                                color="default"
-                                size="sm"
-                                src={currentUser?.photo}
-                            />
-                        </DropdownTrigger>
-                        <DropdownMenu aria-label="Profile Actions" variant="flat">
-                            <DropdownItem textValue="" key="header" className="h-14 gap-2">
-                                <p className="font-semibold">{t("SIGN_IN_AS")}</p>
-                                <p className="font-semibold">{currentUser?.email}</p>
-                            </DropdownItem>
-                            <DropdownItem
-                                textValue=""
-                                startContent={<User size={16} />}
-                                as={Link}
-                                href={`/profile/${currentUser?._id}`}
-                                key="profile"
-                            >
-                                {t("PROFILE")}
-                            </DropdownItem>
-                            <DropdownItem
-                                textValue=""
-                                isReadOnly
-                                startContent={theme === "light" ? <SunDim size={16} /> : <MoonIcon size={16} />}
-                                endContent={
-                                    <select
-                                        className="z-10 outline-none w-16 py-0.5 rounded-md text-tiny group-data-[hover=true]:border-default-500 border-small border-default-300 dark:border-default-200 bg-transparent text-default-500"
-                                        id="theme"
-                                        name="theme"
-                                        value={theme}
-                                        onChange={(e) => setTheme(e.target.value)}
-                                    >
-                                        {mounted && (
-                                            <>
-                                                <option className="text-black" value="dark">
-                                                    {t("THEME_DARK")}
-                                                </option>
-                                                <option className="text-black" value="light">
-                                                    {t("THEME_LIGHT")}
-                                                </option>
-                                            </>
-                                        )}
-                                    </select>
-                                }
-                                key="theme"
-                            >
-                                {t("THEME")}
-                            </DropdownItem>
+                    {isAuthenticated ? (
+                        <Dropdown placement="bottom-end">
+                            <DropdownTrigger>
+                                <Avatar
+                                    isBordered
+                                    as="button"
+                                    className="transition-transform"
+                                    color="default"
+                                    size="sm"
+                                    src={currentUser?.photo}
+                                />
+                            </DropdownTrigger>
+                            <DropdownMenu aria-label="Profile Actions" variant="flat">
+                                <DropdownItem textValue="" key="header" className="h-14 gap-2">
+                                    <p className="font-semibold">{t("SIGN_IN_AS")}</p>
+                                    <p className="font-semibold">{currentUser?.email}</p>
+                                </DropdownItem>
+                                <DropdownItem
+                                    textValue=""
+                                    startContent={<User size={16} />}
+                                    as={Link}
+                                    href={`/profile/${currentUser?._id}`}
+                                    key="profile"
+                                >
+                                    {t("PROFILE")}
+                                </DropdownItem>
+                                <DropdownItem
+                                    textValue=""
+                                    isReadOnly
+                                    startContent={theme === "light" ? <SunDim size={16} /> : <MoonIcon size={16} />}
+                                    endContent={
+                                        <select
+                                            className="z-10 outline-none w-16 py-0.5 rounded-md text-tiny group-data-[hover=true]:border-default-500 border-small border-default-300 dark:border-default-200 bg-transparent text-default-500"
+                                            id="theme"
+                                            name="theme"
+                                            value={theme}
+                                            onChange={(e) => setTheme(e.target.value)}
+                                        >
+                                            {mounted && (
+                                                <>
+                                                    <option className="text-black" value="dark">
+                                                        {t("THEME_DARK")}
+                                                    </option>
+                                                    <option className="text-black" value="light">
+                                                        {t("THEME_LIGHT")}
+                                                    </option>
+                                                </>
+                                            )}
+                                        </select>
+                                    }
+                                    key="theme"
+                                >
+                                    {t("THEME")}
+                                </DropdownItem>
 
-                            <DropdownItem
-                                textValue=""
-                                startContent={<LogOut size={16} />}
-                                key="logout"
-                                color="danger"
-                                className="text-danger"
-                                onPress={handleLogOut}
-                            >
-                                {t("LOGOUT")}
-                            </DropdownItem>
-                        </DropdownMenu>
-                    </Dropdown>
+                                <DropdownItem
+                                    textValue=""
+                                    startContent={<LogOut size={16} />}
+                                    key="logout"
+                                    color="danger"
+                                    className="text-danger"
+                                    onPress={handleLogOut}
+                                >
+                                    {t("LOGOUT")}
+                                </DropdownItem>
+                            </DropdownMenu>
+                        </Dropdown>
+                    ) : (
+                        <Button
+                            size="sm"
+                            as={Link}
+                            href="/login"
+                            color="primary"
+                            variant="flat"
+                        >
+                            Login
+                        </Button>
+                    )}
                 </nav>
             </aside>
 

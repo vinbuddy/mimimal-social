@@ -25,7 +25,7 @@ interface IProps {
 }
 
 export default function CommentItem({ comment, isReply = false }: IProps) {
-    const { currentUser } = useAuthStore();
+    const { currentUser, isAuthenticated } = useAuthStore();
     const { replyTo, reply, unReply } = useReplyStore();
     const params: { id: string } = useParams();
 
@@ -161,17 +161,21 @@ export default function CommentItem({ comment, isReply = false }: IProps) {
                                 <TimeAgo date={comment?.createdAt} />
                             </button>
 
-                            <button onClick={() => handleReply(comment)} className="px-2 ">
-                                {t("REPLY")}
-                            </button>
+                            {isAuthenticated && (
+                                <button onClick={() => handleReply(comment)} className="px-2 ">
+                                    {t("REPLY")}
+                                </button>
+                            )}
 
-                            <div>
-                                <CommentMenuDropdown comment={comment}>
-                                    <button className="px-2 outline-none group-hover:visible invisible">
+                            {isAuthenticated && (
+                                <div>
+                                    <CommentMenuDropdown comment={comment}>
+                                        <button className="px-2 outline-none group-hover:visible invisible">
                                         <EllipsisIcon size={18} />
                                     </button>
                                 </CommentMenuDropdown>
                             </div>
+                            )}
                         </div>
 
                         {/*  REPLIES DIDN'T FETCH */}
@@ -202,11 +206,12 @@ export default function CommentItem({ comment, isReply = false }: IProps) {
                         <div className="flex items-center gap-3">
                             <Button
                                 title="like"
-                                onPress={isLiked ? handleUnLike : handleLike}
+                                onPress={isAuthenticated ? (isLiked ? handleUnLike : handleLike) : undefined}
                                 size="sm"
                                 radius="full"
                                 color={isLiked ? "danger" : "default"}
                                 variant="light"
+                                isDisabled={!isAuthenticated}
                                 className="flex-col w-auto h-auto min-w-0 px-1.5 py-2"
                                 startContent={<HeartIcon isFilled={isLiked} size={18} />}
                             >

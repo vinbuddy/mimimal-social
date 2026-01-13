@@ -15,7 +15,7 @@ interface IProps {
 }
 
 export default function PostActions({ post }: IProps) {
-    const { currentUser } = useAuthStore();
+    const { currentUser, isAuthenticated } = useAuthStore();
     const [isLiked, setIsLiked] = useState<boolean>(() => post?.likes?.includes(currentUser?._id) || false);
     const [likeCount, setLikeCount] = useState<number>(post?.likeCount ?? 0);
     const [isReposted, setIsReposted] = useState<boolean>(
@@ -155,34 +155,37 @@ export default function PostActions({ post }: IProps) {
         <div>
             <Button
                 title="like"
-                onPress={isLiked ? handleUnLike : handleLike}
+                onPress={isAuthenticated ? (isLiked ? handleUnLike : handleLike) : undefined}
                 size="sm"
                 radius="full"
                 color={isLiked ? "danger" : "default"}
                 variant="light"
+                isDisabled={!isAuthenticated}
                 startContent={<HeartIcon isFilled={isLiked} size={18} />}
             >
                 {likeCount}
             </Button>
             <Button
                 title="comment"
-                href={`/post/${post?._id}`}
-                as={Link}
+                href={isAuthenticated ? `/post/${post?._id}` : undefined}
+                as={isAuthenticated ? Link : undefined}
                 size="sm"
                 radius="full"
                 variant="light"
+                isDisabled={!isAuthenticated}
                 startContent={<CommentIcon isFilled={false} size={18} />}
             >
                 {post?.commentCount ?? 0}
             </Button>
 
             <Button
-                onPress={isReposted ? handleUnRepost : handleRepost}
+                onPress={isAuthenticated ? (isReposted ? handleUnRepost : handleRepost) : undefined}
                 title="repost"
                 size="sm"
                 radius="full"
                 variant="light"
                 color={isReposted ? "success" : "default"}
+                isDisabled={!isAuthenticated}
                 startContent={<RepostIcon size={18} />}
             >
                 {repostCount}
