@@ -1,78 +1,118 @@
 import express, { Application } from "express";
-import env from "dotenv";
 import bodyParser from "body-parser";
 import cors from "cors";
-import { errorHandler } from "./middlewares/error-handler.middleware";
-import mongoose from "mongoose";
 import cookieParser from "cookie-parser";
 import session from "express-session";
-
+import helmet from "helmet";
+import morgan from "morgan";
+import mongoose from "mongoose";
+import passport from "passport";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { pubClient, subClient } from "./shared/configs/redis";
 
+import envConfig from "./shared/configs/env";
+import logger, { morganStream } from "./shared/configs/logger";
+import { errorHandler } from "./middlewares/error-handler.middleware";
+import { apiLimiter } from "./middlewares/rate-limiter.middleware";
 import router from "./routes";
 import socketHandlers from "./sockets";
-import passport from "passport";
-import { initializeLoginWithGoogleService } from "./services/google.service";
-
-env.config();
+import { initializeLoginWithGoogleService } from "./modules/auth/google.service";
+import "./shared/queues/image-moderation.queue"; // Initialize worker
 
 // Config server
 const app: Application = express();
 const httpServer = createServer(app);
-const PORT: string | number = process.env.PORT || 5000;
+const PORT = envConfig.PORT;
 
-const io = new Server(httpServer, {
+export const io = new Server(httpServer, {
     cors: {
-        origin: process.env.CLIENT_BASE_URL as string,
+        origin: envConfig.CLIENT_BASE_URL,
         credentials: true,
-        methods: ["GET", "POST", "PUT","PATCH","DELETE"],
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     },
 });
 
-// Use middlewares
+io.adapter(createAdapter(pubClient, subClient));
+
+// ─── Security middlewares ────────────────────────────────────
+app.use(helmet());
+app.use(apiLimiter);
+
+// ─── HTTP Logging ────────────────────────────────────────────
+app.use(
+    morgan(
+        ":method :url :status :res[content-length] - :response-time ms",
+        { stream: morganStream }
+    )
+);
+
+// ─── Session ─────────────────────────────────────────────────
 app.use(
     session({
-        secret: process.env.SESSION_SECRET_KEY as string,
+        secret: envConfig.SESSION_SECRET_KEY,
         resave: false,
-        saveUninitialized: true,
-        cookie: { secure: process.env.ENVIRONMENT === "production", sameSite: "none", maxAge: 30 * 60 * 1000 }, // 30 minutes},
+        saveUninitialized: false, // Don't create sessions for anonymous requests
+        cookie: {
+            secure: envConfig.ENVIRONMENT === "production",
+            sameSite: envConfig.ENVIRONMENT === "production" ? "none" : "lax",
+            maxAge: 30 * 60 * 1000, // 30 minutes
+        },
     })
 );
 
+// ─── Body parsing & cookies ─────────────────────────────────
 app.set("io", io);
-
 app.use(cookieParser());
-app.use(cors({ credentials: true, origin: process.env.CLIENT_BASE_URL as string }));
+app.use(cors({ credentials: true, origin: envConfig.CLIENT_BASE_URL }));
 app.options("*", cors());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.disable("etag");
 
-// Routes
+// ─── Routes ─────────────────────────────────────────────────
 app.use(router);
 
-// Passport middleware
+// ─── Passport ───────────────────────────────────────────────
 initializeLoginWithGoogleService();
 app.use(passport.initialize());
 app.use(passport.session());
 
+// ─── Error handling ─────────────────────────────────────────
 app.use(errorHandler);
 
+// ─── Uncaught exception / rejection handlers ────────────────
+process.on("uncaughtException", (error: Error) => {
+    logger.error("UNCAUGHT EXCEPTION 💥 Shutting down...", {
+        message: error.message,
+        stack: error.stack,
+    });
+    process.exit(1);
+});
+
+process.on("unhandledRejection", (reason: unknown) => {
+    logger.error("UNHANDLED REJECTION 💥 Shutting down...", { reason });
+    httpServer.close(() => {
+        process.exit(1);
+    });
+});
+
+// ─── Start server ───────────────────────────────────────────
 const startServer = async () => {
-    const uri = process.env.MONGODB_URI as string;
     try {
-        await mongoose.connect(uri);
-        console.log(`Database connected`);
+        await mongoose.connect(envConfig.MONGODB_URI);
+        logger.info("✅ Database connected");
 
         // Set up Socket.io event handlers
         socketHandlers(io);
 
         httpServer.listen(PORT, () => {
-            console.log(`running on https://localhost:${PORT}`);
+            logger.info(`🚀 Server running on http://localhost:${PORT}`);
+            logger.info(`📦 Environment: ${envConfig.ENVIRONMENT}`);
         });
-    } catch (error: any) {
-        console.log("error: ", error.message);
+    } catch (error) {
+        logger.error("❌ Failed to start server:", error);
         process.exit(1);
     }
 };
