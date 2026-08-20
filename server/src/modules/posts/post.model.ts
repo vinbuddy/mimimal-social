@@ -49,6 +49,9 @@ export class Post {
 
     @prop({ ref: () => Post, default: null })
     public originalPost: Ref<Post>;
+
+    @prop({ default: "pending", enum: ["pending", "approved", "rejected"] })
+    public moderationStatus?: string;
 }
 
 const PostModel = getModelForClass(Post);

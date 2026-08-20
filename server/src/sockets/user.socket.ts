@@ -1,5 +1,5 @@
 import { Server, Socket } from "socket.io";
-import { addOnlineUser, addSocketClient, onlineUsers, socketClients } from "../shared/services/socket.service";
+// Imports removed
 import ConversationModel from "../modules/messages/conversation.model";
 
 export default function userSocketHandler(socket: Socket) {
@@ -7,10 +7,12 @@ export default function userSocketHandler(socket: Socket) {
         const userId = data?.userId as string;
         if (!userId) return;
 
-        addSocketClient(socket.id, userId);
+        // User joins their personal room for direct notifications
+        socket.join(userId);
+        console.log(`User ${userId} is online and joined personal room`);
 
         try {
-            // Tìm các conversations mà user đã tham gia
+            // Join conversation rooms
             const conversations = await ConversationModel.find({
                 participants: {
                     $in: [userId],
@@ -21,13 +23,6 @@ export default function userSocketHandler(socket: Socket) {
                 conversations.forEach((conversation) => {
                     socket.join(conversation._id.toString());
                     console.log(`User ${userId} joined room ${conversation._id}`);
-                });
-
-                addOnlineUser(userId, {
-                    userId: userId,
-                    socketId: socket.id,
-                    roomIds: conversations.map((conversation) => conversation._id.toString()),
-                    currentRoomId: null,
                 });
             } else {
                 console.log(`User ${userId} has no conversations`);

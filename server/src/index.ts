@@ -9,6 +9,8 @@ import mongoose from "mongoose";
 import passport from "passport";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { pubClient, subClient } from "./shared/configs/redis";
 
 import envConfig from "./shared/configs/env";
 import logger, { morganStream } from "./shared/configs/logger";
@@ -17,19 +19,22 @@ import { apiLimiter } from "./middlewares/rate-limiter.middleware";
 import router from "./routes";
 import socketHandlers from "./sockets";
 import { initializeLoginWithGoogleService } from "./modules/auth/google.service";
+import "./shared/queues/image-moderation.queue"; // Initialize worker
 
 // Config server
 const app: Application = express();
 const httpServer = createServer(app);
 const PORT = envConfig.PORT;
 
-const io = new Server(httpServer, {
+export const io = new Server(httpServer, {
     cors: {
         origin: envConfig.CLIENT_BASE_URL,
         credentials: true,
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     },
 });
+
+io.adapter(createAdapter(pubClient, subClient));
 
 // ─── Security middlewares ────────────────────────────────────
 app.use(helmet());

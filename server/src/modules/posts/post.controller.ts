@@ -11,7 +11,7 @@ import { uploadToCloudinary } from "../../shared/helpers/cloudinary";
 import cloudinary from "../../shared/configs/cloudinary";
 import CommentModel from "../comments/comment.model";
 import { getPostQueryHelper } from "./post.service";
-import { moderateImage } from "../../shared/helpers/media-moderation";
+// import { moderateImage } from "../../shared/helpers/media-moderation";
 import { RequestWithUser } from "../../shared/types/request";
 
 interface RequestWithFiles extends Request {
@@ -34,23 +34,7 @@ export async function createPostHandler(_req: Request, res: Response, next: Next
             uploadedFiles = await Promise.all(uploadPromises);
         }
 
-        if (uploadedFiles.length > 0) {
-            // Check image moderation, check if has any image that is not safe -> delete all uploaded files
-            const imageModerationPromises = uploadedFiles.map((file) => moderateImage(file.url));
-            const imageModerationResults = await Promise.all(imageModerationPromises);
-
-            const isNotSafe = imageModerationResults.some((result) => result === false);
-
-            if (isNotSafe) {
-                const promises = uploadedFiles.map((file) => cloudinary.uploader.destroy(file.publicId));
-                await Promise.all(promises);
-
-                return res.status(400).json({ message: "Image contains nudity, please upload another image" });
-            }
-        }
-
         const { mentions: mentionUsernames, tags } = extractMentionsAndTags(caption);
-
         const formatCaption = await replaceHrefs(caption);
 
         const mentionUserIds: any = [];
@@ -62,15 +46,26 @@ export async function createPostHandler(_req: Request, res: Response, next: Next
             mentionUserIds.push(userId);
         });
 
+        // Default status is pending. If no image, it's approved automatically
+        const moderationStatus = uploadedFiles.length > 0 ? "pending" : "approved";
+
         const newPost = await PostModel.create({
             postBy: new mongoose.Types.ObjectId(postBy),
             caption: formatCaption,
             mentions: mentionUserIds,
             tags,
             mediaFiles: (uploadedFiles as MediaFile[]) ?? [],
+            moderationStatus
         });
 
-        await newPost.save();
+        if (uploadedFiles.length > 0) {
+            // Push to background queue instead of blocking
+            const { imageModerationQueue } = await import("../../shared/queues/image-moderation.queue");
+            imageModerationQueue.add("moderate-images", {
+                postId: newPost._id,
+                mediaFiles: uploadedFiles
+            });
+        }
 
         const post = await PostModel.populate(newPost, [
             { path: "postBy", select: USER_MODEL_HIDDEN_FIELDS },
@@ -164,6 +159,7 @@ export async function getAllPostsHandler(_req: Request, res: Response, next: Nex
         const blockedByUsers = blocksAgainstMe.map(b => b.blocker);
 
         const condition = {
+            moderationStatus: { $ne: "rejected" },
             $or: [
                 { postBy: new mongoose.Types.ObjectId(currentUserId) }, // Include my posts
                 { postBy: { $nin: [...blockedUsers, ...blockedByUsers] } }, // Exclude posts from both blocked and blocking users
@@ -174,14 +170,27 @@ export async function getAllPostsHandler(_req: Request, res: Response, next: Nex
 
         const facetResult = await PostModel.aggregate([
             { $match: condition },
+            { $sort: { createdAt: -1 } },
+            { $limit: 1000 }, // Optimization: Only score the top 1000 latest posts
+            ...getPostQueryHelper.postLookups,
+            {
+                $addFields: {
+                    score: {
+                        $add: [
+                            { $multiply: ["$likeCount", 2] },
+                            { $multiply: ["$commentCount", 3] },
+                            { $multiply: ["$repostCount", 1.5] }
+                        ]
+                    }
+                }
+            },
             {
                 $facet: {
                     metadata: [{ $count: "total" }],
                     data: [
-                        { $sort: { createdAt: -1 } },
+                        { $sort: { score: -1, createdAt: -1 } },
                         { $skip: skip },
                         { $limit: limit },
-                        ...getPostQueryHelper.postLookups,
                         ...getPostQueryHelper.originalPostLookups,
                         {
                             $project: {

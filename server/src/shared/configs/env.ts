@@ -12,8 +12,9 @@ const envSchema = z.object({
         .pipe(z.number().int().positive()),
     ENVIRONMENT: z.enum(["development", "production"]).default("development"),
 
-    // Database
+    // Database & Caching
     MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
+    REDIS_URL: z.string().optional(),
 
     // Client
     CLIENT_BASE_URL: z.string().url("CLIENT_BASE_URL must be a valid URL"),

@@ -35,11 +35,25 @@ export async function getUserHandler(_req: Request, res: Response, next: NextFun
             return res.status(400).json({ statusCode: 400, message: "Id is required" });
         }
 
-        const currentUser = await UserModel.findById(currentUserId);
+        const cacheKey = `user:profile:${id}`;
+        
+        // Try getting from cache
+        const { redisClient } = await import("../../shared/configs/redis");
+        const cachedProfile = await redisClient.get(cacheKey);
 
-        const user = await UserModel.findById(id).select(USER_MODEL_HIDDEN_FIELDS);
+        let user;
 
-        // Check if currentUser is blocked by user accessing
+        if (cachedProfile) {
+            user = JSON.parse(cachedProfile);
+        } else {
+            user = await UserModel.findById(id).select(USER_MODEL_HIDDEN_FIELDS).lean();
+            if (user) {
+                // Set cache for 5 minutes
+                await redisClient.setex(cacheKey, 300, JSON.stringify(user));
+            }
+        }
+
+        // Check if currentUser is blocked by user accessing (should not cache block check)
         const isBlocked = await BlockModel.findOne({ blocker: id, blocked: currentUserId });
 
         if (isBlocked) {
@@ -195,8 +209,12 @@ export async function editProfileHandler(_req: Request, res: Response, next: Nex
         if (!updated) {
             return res.status(404).json({ message: "User not found" });
         }
-
+        
         const updatedUser = await UserModel.findById(userId).select(USER_MODEL_HIDDEN_FIELDS);
+
+        // Invalidate cache
+        const { redisClient } = await import("../../shared/configs/redis");
+        await redisClient.del(`user:profile:${userId}`);
 
         return res.status(200).json({ message: "Profile updated successfully", data: updatedUser });
     } catch (error) {

@@ -1,34 +1,28 @@
-export const socketClients: Record<string, string> = {
-    // [socketId]: userId
-};
+// We no longer need in-memory socketClients and onlineUsers 
+// because we are using Socket.IO Redis Adapter and rooms.
+// Each user joins a room named by their userId.
 
 export function addSocketClient(socketId: string, userId: string) {
-    socketClients[socketId] = userId;
+    // Deprecated. Use socket.join(userId) instead.
 }
 
 export function removeSocketClient(socketId: string) {
-    if (socketClients[socketId]) {
-        delete socketClients[socketId];
-    }
+    // Deprecated.
 }
 
 export function getSocketClientsByUserId(userId: string): string[] {
-    return Object.keys(socketClients).filter((socketId) => socketClients[socketId] === userId);
+    // Deprecated. Use io.to(userId).emit(...) instead.
+    return [userId]; // Return userId itself so io.to(socketId) becomes io.to(userId)
 }
 
-//  ONLINE USER
+// ONLINE USER
 export interface OnlineUser {
     userId: string;
     socketId: string;
     roomIds: string[];
     currentRoomId: string | null;
 }
-export const onlineUsers: Record<string, OnlineUser> = {
-    // [userId]: OnlineUser
-};
 
 export function addOnlineUser(userId: string, userInfo: OnlineUser) {
-    if (!onlineUsers[userId]) {
-        onlineUsers[userId] = userInfo;
-    }
+    // Deprecated.
 }

@@ -5,7 +5,7 @@ import mongoose from "mongoose";
 import { CreateNotificationInput, createNotificationSchema } from "./notification.schema";
 import NotificationModel, { NotificationReceiver, Notification } from "./notification.model";
 import { Server } from "socket.io";
-import { getSocketClientsByUserId } from "../../shared/services/socket.service";
+// import removed
 
 const helpers = {
     createNotificationReceiver(receiverId: mongoose.Types.ObjectId): NotificationReceiver {
@@ -115,19 +115,15 @@ export async function createNotificationHandler(req: Request, res: Response, nex
         const senderInfo = await UserModel.findById(sender).select(USER_MODEL_HIDDEN_FIELDS);
 
         // Send notification to receivers
-        const io = req.app.get("io") as Server;
+        const { io } = await import("../../index");
 
         receivers.forEach((receiver: string) => {
-            const socketIds = getSocketClientsByUserId(receiver);
-
-            socketIds.forEach((socketId: string) => {
-                if (socketId && receiver !== sender) {
-                    io.to(socketId).emit("notification", {
-                        notification,
-                        sender: senderInfo,
-                    });
-                }
-            });
+            if (receiver !== sender) {
+                io.to(receiver).emit("notification", {
+                    notification,
+                    sender: senderInfo,
+                });
+            }
         });
 
         return res.status(200).json({
