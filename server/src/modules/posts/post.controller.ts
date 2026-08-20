@@ -175,11 +175,29 @@ export async function getAllPostsHandler(_req: Request, res: Response, next: Nex
             ...getPostQueryHelper.postLookups,
             {
                 $addFields: {
-                    score: {
+                    baseScore: {
                         $add: [
                             { $multiply: ["$likeCount", 2] },
                             { $multiply: ["$commentCount", 3] },
-                            { $multiply: ["$repostCount", 1.5] }
+                            { $multiply: ["$repostCount", 1.5] },
+                            1 // Default starting score for all posts
+                        ]
+                    },
+                    ageInHours: {
+                        $divide: [
+                            { $subtract: ["$$NOW", "$createdAt"] },
+                            3600000 // Convert milliseconds to hours
+                        ]
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    // HackerNews Gravity Algorithm: Score = baseScore / (ageInHours + 2)^1.5
+                    score: {
+                        $divide: [
+                            "$baseScore",
+                            { $pow: [ { $add: ["$ageInHours", 2] }, 1.5 ] }
                         ]
                     }
                 }
