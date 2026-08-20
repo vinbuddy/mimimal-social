@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import logger from "../shared/configs/logger";
 import UserModel, { USER_MODEL_HIDDEN_FIELDS } from "../models/user.model";
 import mongoose from "mongoose";
 import {
@@ -385,7 +386,7 @@ export async function getMessagesWithCursorHandler(_req: Request, res: Response,
 
         return res.status(200).json({ message: "Get messages successfully", data: messages, hasNextPage, hasPrevPage });
     } catch (error) {
-        console.log("error: ", error);
+        logger.error("Get messages with cursor error:", error);
         next(error);
     }
 }

@@ -60,7 +60,7 @@ export async function changePasswordHandler(_req: Request, res: Response, next: 
 
         await otpModel.save();
 
-        return res.status(200).json({ message: "OTP sent to your email address", otp, toEmail: user.email });
+        return res.status(200).json({ message: "OTP sent to your email address", toEmail: user.email });
     } catch (error) {
         next(error);
     }

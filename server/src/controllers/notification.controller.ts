@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from "express";
+import logger from "../shared/configs/logger";
 import UserModel, { User, USER_MODEL_HIDDEN_FIELDS } from "../models/user.model";
 import mongoose from "mongoose";
 import { CreateNotificationInput, createNotificationSchema } from "../schemas/notification.schema";
@@ -65,7 +66,7 @@ export async function createNotificationHandler(req: Request, res: Response, nex
         const { targetType, target, action, photo, message, url, sender, receivers } = createNotificationSchema.parse(
             req.body
         ) as CreateNotificationInput;
-        console.log("sender: ", sender);
+        logger.debug("Creating notification from sender:", { sender });
 
         const senderId = new mongoose.Types.ObjectId(sender);
         const receiverIds = receivers.map((receiver: string) => new mongoose.Types.ObjectId(receiver));

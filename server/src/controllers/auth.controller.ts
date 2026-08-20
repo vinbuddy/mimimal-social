@@ -1,4 +1,5 @@
 import { CookieOptions, NextFunction, Request, Response } from "express";
+import logger from "../shared/configs/logger";
 import UserModel, { User, USER_MODEL_HIDDEN_FIELDS } from "../models/user.model";
 import {
     CreateUserInput,
@@ -76,7 +77,7 @@ export async function registerHandler(req: Request, res: Response, next: NextFun
 
         await otpModel.save();
 
-        return res.status(200).json({ message: "OTP sent to your email address", otp, toEmail: userInput.email });
+        return res.status(200).json({ message: "OTP sent to your email address", toEmail: userInput.email });
     } catch (error) {
         next(error);
     }
@@ -220,7 +221,7 @@ export async function refreshTokenHandler(req: Request, res: Response, next: Nex
             .status(200)
             .json({ statusCode: 200, data: user, accessToken: newAccessToken, refreshToken: newRefreshToken });
     } catch (error) {
-        console.log("error: ", error);
+        logger.error("Refresh token error:", error);
         next(error);
     }
 }
@@ -272,7 +273,7 @@ export async function forgotPasswordHandler(req: Request, res: Response, next: N
 
         return res
             .status(200)
-            .json({ statusCode: 200, message: "OTP sent to your email address", otp, toEmail: email });
+            .json({ statusCode: 200, message: "OTP sent to your email address", toEmail: email });
     } catch (error) {
         next(error);
     }
@@ -370,7 +371,7 @@ export async function googleAuthCallbackHandler(_req: Request, res: Response, ne
                 .redirect(`${process.env.CLIENT_BASE_URL as string}/login`);
         });
     } catch (error) {
-        console.log("error: ", error);
+        logger.error("Google auth callback error:", error);
         next(error);
     }
 }

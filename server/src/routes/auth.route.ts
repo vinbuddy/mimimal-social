@@ -14,22 +14,23 @@ import {
     googleAuthCallbackHandler,
 } from "../controllers/auth.controller";
 import { verifyToken } from "../middlewares/verify-token.middleware";
+import { authLimiter, otpLimiter } from "../middlewares/rate-limiter.middleware";
 
 env.config();
 
 const router: Router = express.Router();
 
-router.post("/register", registerHandler);
-router.post("/login", loginHandler);
+router.post("/register", authLimiter, registerHandler);
+router.post("/login", authLimiter, loginHandler);
 
-router.post("/verify-otp", verifyOTPHandler);
+router.post("/verify-otp", otpLimiter, verifyOTPHandler);
 router.post("/refresh", refreshTokenHandler);
 
 router.post("/logout", verifyToken, logoutHandler);
 
-router.post("/forgot", forgotPasswordHandler);
-router.post("/forgot/verify", verifyForgotPasswordOTPHandler);
-router.post("/reset", resetPasswordHandler);
+router.post("/forgot", otpLimiter, forgotPasswordHandler);
+router.post("/forgot/verify", otpLimiter, verifyForgotPasswordOTPHandler);
+router.post("/reset", authLimiter, resetPasswordHandler);
 
 router.get("/me", verifyToken, getMeHandler);
 

@@ -140,7 +140,9 @@ export async function deletePostHandler(req: Request, res: Response, next: NextF
         await CommentModel.deleteMany({ target: new mongoose.Types.ObjectId(id) });
 
         return res.status(200).json({ message: "Delete post successfully" });
-    } catch (error) {}
+    } catch (error) {
+        next(error);
+    }
 }
 
 export async function getAllPostsHandler(_req: Request, res: Response, next: NextFunction) {
