@@ -1,4 +1,4 @@
-import { prop, getModelForClass, modelOptions, Severity, Ref, pre } from "@typegoose/typegoose";
+import { prop, getModelForClass, modelOptions, Severity, Ref, pre, index } from "@typegoose/typegoose";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 import cloudinary from "cloudinary";
@@ -23,6 +23,8 @@ export class MediaFile {
 }
 
 @modelOptions({ schemaOptions: { collection: "posts", timestamps: true }, options: { allowMixed: Severity.ALLOW } })
+@index({ postBy: 1, createdAt: -1 })
+@index({ caption: "text", tags: "text" })
 export class Post {
     @prop({ auto: true })
     public _id?: mongoose.Types.ObjectId;
@@ -40,9 +42,6 @@ export class Post {
     public postBy: Ref<User>;
 
     @prop({ ref: () => User })
-    public likes: Ref<User>[];
-
-    @prop({ ref: () => User })
     public mentions: Ref<User>[];
 
     @prop()
@@ -50,9 +49,6 @@ export class Post {
 
     @prop({ ref: () => Post, default: null })
     public originalPost: Ref<Post>;
-
-    @prop({ ref: () => User, default: [] })
-    public reposts: Ref<User>[];
 }
 
 const PostModel = getModelForClass(Post);

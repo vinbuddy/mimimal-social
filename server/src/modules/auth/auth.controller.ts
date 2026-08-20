@@ -1,6 +1,7 @@
 import { CookieOptions, NextFunction, Request, Response } from "express";
 import logger from "../../shared/configs/logger";
 import UserModel, { User, USER_MODEL_HIDDEN_FIELDS } from "../users/user.model";
+import { BlockModel } from "../users/block.model";
 import {
     CreateUserInput,
     LoginUserInput,
@@ -112,16 +113,18 @@ export async function loginHandler(req: Request, res: Response, next: NextFuncti
     try {
         const { email, password }: LoginUserInput = loginSchema.parse(req.body);
 
-        const user = await UserModel.findOne({ email })
-            .populate({
-                path: "blockedUsers",
-                select: USER_MODEL_HIDDEN_FIELDS,
-            })
-            .lean(); // Find user by email address in the database
+        const user = await UserModel.findOne({ email }).lean(); // Find user by email address in the database
 
         if (!user) {
             return res.status(400).json({ statusCode: 400, message: "User not found" });
         }
+
+        // Fetch blocked users manually since it's removed from schema
+        const blocks = await BlockModel.find({ blocker: user._id }).populate({
+            path: "blocked",
+            select: USER_MODEL_HIDDEN_FIELDS,
+        });
+        (user as any).blockedUsers = blocks.map((b: any) => b.blocked);
 
         // Compare password with the hashed password in the database using bcrypt
 
@@ -326,12 +329,15 @@ export async function getMeHandler(_req: Request, res: Response, next: NextFunct
             return res.status(400).json({ statusCode: 400, message: "Id is required" });
         }
 
-        const user = await UserModel.findById(id)
-            .populate({
-                path: "blockedUsers",
+        const user = await UserModel.findById(id).select(USER_MODEL_HIDDEN_FIELDS).lean();
+
+        if (user) {
+            const blocks = await BlockModel.find({ blocker: id }).populate({
+                path: "blocked",
                 select: USER_MODEL_HIDDEN_FIELDS,
-            })
-            .select(USER_MODEL_HIDDEN_FIELDS);
+            });
+            (user as any).blockedUsers = blocks.map((b: any) => b.blocked);
+        }
 
         return res.status(200).json({ statusCode: 200, data: user });
     } catch (error) {

@@ -26,12 +26,29 @@ export const getPostQueryHelper = {
             },
         },
         {
+            $lookup: {
+                from: "postlikes",
+                localField: "_id",
+                foreignField: "post",
+                as: "likes",
+            },
+        },
+        {
+            $lookup: {
+                from: "posts",
+                localField: "_id",
+                foreignField: "originalPost",
+                as: "reposts",
+            },
+        },
+        {
             $addFields: {
                 likeCount: { $size: { $ifNull: ["$likes", []] } },
                 commentCount: { $size: { $ifNull: ["$comments", []] } },
                 repostCount: { $size: { $ifNull: ["$reposts", []] } },
             },
         },
+        { $project: { likes: 0, reposts: 0 } }, // exclude heavy arrays from final doc
     ],
     originalPostLookups: [
         {
@@ -69,12 +86,29 @@ export const getPostQueryHelper = {
             },
         },
         {
+            $lookup: {
+                from: "postlikes",
+                localField: "originalPost._id",
+                foreignField: "post",
+                as: "originalPost.likes",
+            },
+        },
+        {
+            $lookup: {
+                from: "posts",
+                localField: "originalPost._id",
+                foreignField: "originalPost",
+                as: "originalPost.reposts",
+            },
+        },
+        {
             $addFields: {
                 "originalPost.likeCount": { $size: { $ifNull: ["$originalPost.likes", []] } },
                 "originalPost.commentCount": { $size: { $ifNull: ["$originalPost.comments", []] } },
                 "originalPost.repostCount": { $size: { $ifNull: ["$originalPost.reposts", []] } },
             },
         },
+        { $project: { "originalPost.likes": 0, "originalPost.reposts": 0 } },
     ],
     projectFields: {
         "postBy.password": 0,

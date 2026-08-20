@@ -208,10 +208,6 @@ export async function getMessagesWithCursorHandler(_req: Request, res: Response,
                     populate: {
                         path: "participants",
                         select: USER_MODEL_HIDDEN_FIELDS,
-                        populate: {
-                            path: "blockedUsers",
-                            select: USER_MODEL_HIDDEN_FIELDS,
-                        },
                     },
                 })
                 .populate({ path: "reactions.user", select: USER_MODEL_HIDDEN_FIELDS });
@@ -250,10 +246,6 @@ export async function getMessagesWithCursorHandler(_req: Request, res: Response,
                 populate: {
                     path: "participants",
                     select: USER_MODEL_HIDDEN_FIELDS,
-                    populate: {
-                        path: "blockedUsers",
-                        select: USER_MODEL_HIDDEN_FIELDS,
-                    },
                 },
             })
             .populate({
@@ -298,10 +290,6 @@ export async function getMessagesWithCursorHandler(_req: Request, res: Response,
                     populate: {
                         path: "participants",
                         select: USER_MODEL_HIDDEN_FIELDS,
-                        populate: {
-                            path: "blockedUsers",
-                            select: USER_MODEL_HIDDEN_FIELDS,
-                        },
                     },
                 })
                 .populate({
@@ -332,10 +320,6 @@ export async function getMessagesWithCursorHandler(_req: Request, res: Response,
                     populate: {
                         path: "participants",
                         select: USER_MODEL_HIDDEN_FIELDS,
-                        populate: {
-                            path: "blockedUsers",
-                            select: USER_MODEL_HIDDEN_FIELDS,
-                        },
                     },
                 })
                 .populate({
@@ -365,10 +349,6 @@ export async function getMessagesWithCursorHandler(_req: Request, res: Response,
                     populate: {
                         path: "participants",
                         select: USER_MODEL_HIDDEN_FIELDS,
-                        populate: {
-                            path: "blockedUsers",
-                            select: USER_MODEL_HIDDEN_FIELDS,
-                        },
                     },
                 })
                 .populate({ path: "reactions.user", select: USER_MODEL_HIDDEN_FIELDS });

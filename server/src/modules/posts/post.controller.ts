@@ -1,5 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import PostModel, { MediaFile } from "./post.model";
+import { PostLikeModel } from "./post-like.model";
+import { BlockModel } from "../users/block.model";
+import { FollowModel } from "../users/follow.model";
 import { extractMentionsAndTags, replaceHrefs } from "../../shared/helpers/text-parser";
 import UserModel, { USER_MODEL_HIDDEN_FIELDS } from "../users/user.model";
 import mongoose, { Model } from "mongoose";
@@ -153,43 +156,47 @@ export async function getAllPostsHandler(_req: Request, res: Response, next: Nex
 
         // Me: Blocked some users
         const currentUserId = req.user._id?.toString();
-        const currentUser = await UserModel.findById(currentUserId);
-        const blockedUsers = currentUser?.blockedUsers ?? [];
+        const blocksByMe = await BlockModel.find({ blocker: currentUserId }).select("blocked");
+        const blockedUsers = blocksByMe.map(b => b.blocked);
 
         // Users: Blocked me
-        const blockedByUsers = await UserModel.find({
-            blockedUsers: {
-                $in: [new mongoose.Types.ObjectId(currentUserId)],
-            },
-        }).distinct("_id");
+        const blocksAgainstMe = await BlockModel.find({ blocked: currentUserId }).select("blocker");
+        const blockedByUsers = blocksAgainstMe.map(b => b.blocker);
 
         const condition = {
             $or: [
-                { postBy: currentUser?._id }, // Include my posts
+                { postBy: new mongoose.Types.ObjectId(currentUserId) }, // Include my posts
                 { postBy: { $nin: [...blockedUsers, ...blockedByUsers] } }, // Exclude posts from both blocked and blocking users
             ],
         };
 
         const skip = (Number(page) - 1) * limit;
-        const totalPosts = await PostModel.countDocuments(condition);
-        const totalPages = Math.ceil(totalPosts / limit);
 
-        const posts = await PostModel.aggregate([
+        const facetResult = await PostModel.aggregate([
+            { $match: condition },
             {
-                $match: condition,
-            },
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: limit },
-            ...getPostQueryHelper.postLookups,
-            ...getPostQueryHelper.originalPostLookups,
-            {
-                $project: {
-                    ...getPostQueryHelper.projectFields,
-                    comment: 0,
-                },
-            },
+                $facet: {
+                    metadata: [{ $count: "total" }],
+                    data: [
+                        { $sort: { createdAt: -1 } },
+                        { $skip: skip },
+                        { $limit: limit },
+                        ...getPostQueryHelper.postLookups,
+                        ...getPostQueryHelper.originalPostLookups,
+                        {
+                            $project: {
+                                ...getPostQueryHelper.projectFields,
+                                comment: 0,
+                            },
+                        },
+                    ]
+                }
+            }
         ]);
+
+        const totalPosts = facetResult[0].metadata[0]?.total || 0;
+        const totalPages = Math.ceil(totalPosts / limit);
+        const posts = facetResult[0].data;
 
         return res
             .status(200)
@@ -216,27 +223,34 @@ export async function getFollowingPostsHandler(req: Request, res: Response, next
             return res.status(404).json({ message: "User not found" });
         }
 
-        const followingIds = user?.followings ?? [];
+        const followingDocs = await FollowModel.find({ follower: userId }).select("following");
+        const followingIds = followingDocs.map((f: any) => f.following);
 
-        const totalPosts = await PostModel.countDocuments({
-            postBy: { $in: followingIds }, // Get following posts
-        });
-        const totalPages = Math.ceil(totalPosts / limit);
-
-        const posts = await PostModel.aggregate([
+        const facetResult = await PostModel.aggregate([
             { $match: { postBy: { $in: followingIds } } },
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: limit },
-            ...getPostQueryHelper.postLookups,
-            ...getPostQueryHelper.originalPostLookups,
             {
-                $project: {
-                    ...getPostQueryHelper.projectFields,
-                    comment: 0,
-                },
-            },
+                $facet: {
+                    metadata: [{ $count: "total" }],
+                    data: [
+                        { $sort: { createdAt: -1 } },
+                        { $skip: skip },
+                        { $limit: limit },
+                        ...getPostQueryHelper.postLookups,
+                        ...getPostQueryHelper.originalPostLookups,
+                        {
+                            $project: {
+                                ...getPostQueryHelper.projectFields,
+                                comment: 0,
+                            },
+                        },
+                    ]
+                }
+            }
         ]);
+
+        const totalPosts = facetResult[0].metadata[0]?.total || 0;
+        const totalPages = Math.ceil(totalPosts / limit);
+        const posts = facetResult[0].data;
 
         return res
             .status(200)
@@ -315,46 +329,54 @@ export async function getLikedPostsHandler(_req: Request, res: Response, next: N
 
         // Me: Blocked some users
         const currentUserId = req.user._id?.toString();
-        const currentUser = await UserModel.findById(currentUserId);
-        const blockedUsers = currentUser?.blockedUsers ?? [];
+        const blocksByMe = await BlockModel.find({ blocker: currentUserId }).select("blocked");
+        const blockedUsers = blocksByMe.map(b => b.blocked);
 
         // Users: Blocked me
-        const blockedByUsers = await UserModel.find({
-            blockedUsers: {
-                $in: [new mongoose.Types.ObjectId(currentUserId)],
-            },
-        }).distinct("_id");
+        const blocksAgainstMe = await BlockModel.find({ blocked: currentUserId }).select("blocker");
+        const blockedByUsers = blocksAgainstMe.map(b => b.blocker);
+
+        const myLikes = await PostLikeModel.find({ user: currentUserId }).select("post");
+        const myLikedPostIds = myLikes.map(like => like.post);
 
         const condition = {
             $and: [
-                { likes: { $in: [currentUser?._id] } }, // Include my liked posts
-                { postBy: { $nin: [...blockedUsers, ...blockedByUsers] } }, // Exclude posts from both blocked and blocking users
+                { _id: { $in: myLikedPostIds } },
+                { postBy: { $nin: [...blockedUsers, ...blockedByUsers] } },
             ],
         };
 
         const skip = (page - 1) * limit;
 
-        const totalPosts = await PostModel.countDocuments(condition);
-        const totalPages = Math.ceil(totalPosts / limit);
-
-        const posts = await PostModel.aggregate([
+        const facetResult = await PostModel.aggregate([
             { $match: condition },
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: limit },
-            ...getPostQueryHelper.postLookups,
-            ...getPostQueryHelper.originalPostLookups,
             {
-                $project: {
-                    ...getPostQueryHelper.projectFields,
-                    comment: 0,
-                },
-            },
+                $facet: {
+                    metadata: [{ $count: "total" }],
+                    data: [
+                        { $sort: { createdAt: -1 } },
+                        { $skip: skip },
+                        { $limit: limit },
+                        ...getPostQueryHelper.postLookups,
+                        ...getPostQueryHelper.originalPostLookups,
+                        {
+                            $project: {
+                                ...getPostQueryHelper.projectFields,
+                                comment: 0,
+                            },
+                        },
+                    ]
+                }
+            }
         ]);
+
+        const totalPosts = facetResult[0].metadata[0]?.total || 0;
+        const totalPages = Math.ceil(totalPosts / limit);
+        const posts = facetResult[0].data;
 
         return res
             .status(200)
-            .json({ message: "Get following posts successfully", data: posts, totalPosts, totalPages, page, limit });
+            .json({ message: "Get liked posts successfully", data: posts, totalPosts, totalPages, page, limit });
     } catch (error) {
         next(error);
     }
@@ -380,31 +402,42 @@ export async function getUserPostsHandler(req: Request, res: Response, next: Nex
         };
 
         if (type === "repost") {
+            // Find posts where originalPost is not null and postBy is this user
             condition = {
-                reposts: { $in: [new mongoose.Types.ObjectId(userId)] },
+                postBy: new mongoose.Types.ObjectId(userId),
+                originalPost: { $ne: null }
             };
         }
-        const totalPosts = await PostModel.countDocuments(condition);
-        const totalPages = Math.ceil(totalPosts / limit);
 
-        const posts = await PostModel.aggregate([
+        const facetResult = await PostModel.aggregate([
             { $match: condition },
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: limit },
-            ...getPostQueryHelper.postLookups,
-            ...getPostQueryHelper.originalPostLookups,
             {
-                $project: {
-                    ...getPostQueryHelper.projectFields,
-                    comment: 0,
-                },
-            },
+                $facet: {
+                    metadata: [{ $count: "total" }],
+                    data: [
+                        { $sort: { createdAt: -1 } },
+                        { $skip: skip },
+                        { $limit: limit },
+                        ...getPostQueryHelper.postLookups,
+                        ...getPostQueryHelper.originalPostLookups,
+                        {
+                            $project: {
+                                ...getPostQueryHelper.projectFields,
+                                comment: 0,
+                            },
+                        },
+                    ]
+                }
+            }
         ]);
+
+        const totalPosts = facetResult[0].metadata[0]?.total || 0;
+        const totalPages = Math.ceil(totalPosts / limit);
+        const posts = facetResult[0].data;
 
         return res
             .status(200)
-            .json({ message: "Get following posts successfully", data: posts, totalPosts, totalPages, page, limit });
+            .json({ message: "Get user posts successfully", data: posts, totalPosts, totalPages, page, limit });
     } catch (error) {
         next(error);
     }
@@ -414,15 +447,19 @@ export async function likePostHandler(req: Request, res: Response, next: NextFun
     try {
         const { postId, userId } = req.body;
 
-        const updatedPost = await PostModel.findByIdAndUpdate(postId, {
-            $push: { likes: userId },
-        });
-
-        if (!updatedPost) {
+        const postExists = await PostModel.findById(postId);
+        if (!postExists) {
             return res.status(404).json({ message: "Post not found" });
         }
 
-        const post = await PostModel.populate(updatedPost, [
+        const existingLike = await PostLikeModel.findOne({ post: postId, user: userId });
+        if (existingLike) {
+            return res.status(400).json({ message: "Post already liked" });
+        }
+
+        await PostLikeModel.create({ post: postId, user: userId });
+
+        const post = await PostModel.populate(postExists, [
             { path: "postBy", select: USER_MODEL_HIDDEN_FIELDS },
             { path: "mentions", select: USER_MODEL_HIDDEN_FIELDS },
         ]);
@@ -437,15 +474,19 @@ export async function unlikePostHandler(req: Request, res: Response, next: NextF
     try {
         const { postId, userId } = req.body;
 
-        const updatedPost = await PostModel.findByIdAndUpdate(postId, {
-            $pull: { likes: userId },
-        });
+        const deleteResult = await PostLikeModel.deleteOne({ post: postId, user: userId });
 
-        if (!updatedPost) {
+        if (deleteResult.deletedCount === 0) {
+            return res.status(400).json({ message: "You have not liked this post" });
+        }
+
+        const postExists = await PostModel.findById(postId);
+
+        if (!postExists) {
             return res.status(404).json({ message: "Post not found" });
         }
 
-        const post = await PostModel.populate(updatedPost, [
+        const post = await PostModel.populate(postExists, [
             { path: "postBy", select: USER_MODEL_HIDDEN_FIELDS },
             { path: "mentions", select: USER_MODEL_HIDDEN_FIELDS },
         ]);
@@ -471,12 +512,6 @@ export async function repostHandler(req: Request, res: Response, next: NextFunct
             originalPost: new mongoose.Types.ObjectId(postId),
         });
 
-        await PostModel.findByIdAndUpdate(postId, {
-            $push: { reposts: userId },
-        });
-
-        await repostedPost.save();
-
         const newPost = await PostModel.populate(repostedPost, [
             { path: "postBy", select: USER_MODEL_HIDDEN_FIELDS },
             { path: "mentions", select: USER_MODEL_HIDDEN_FIELDS },
@@ -498,9 +533,6 @@ export async function unRepostHandler(req: Request, res: Response, next: NextFun
             return res.status(404).json({ message: "Post not found" });
         }
 
-        await PostModel.findByIdAndUpdate(originalPostId, {
-            $pull: { reposts: userId },
-        });
         await PostModel.findByIdAndDelete(postId);
 
         return res.status(200).json({ message: "Unrepost post successfully" });
@@ -526,19 +558,21 @@ export async function getUsersLikedPostHandler(req: Request, res: Response, next
             return res.status(404).json({ message: "Post not found" });
         }
 
+        const condition = { post: new mongoose.Types.ObjectId(postId) };
+
         // Pagination
         const skip = (Number(page) - 1) * limit;
-        const totalUsers = post.likes.length;
+        const totalUsers = await PostLikeModel.countDocuments(condition);
         const totalPages = Math.ceil(totalUsers / limit);
 
         // Get users with pagination
-        const users = await UserModel.find({
-            _id: { $in: post.likes },
-        })
+        const likes = await PostLikeModel.find(condition)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .select(USER_MODEL_HIDDEN_FIELDS);
+            .populate({ path: "user", select: USER_MODEL_HIDDEN_FIELDS });
+            
+        const users = likes.map(l => l.user).filter(u => u);
 
         return res
             .status(200)
@@ -564,18 +598,20 @@ export async function getUsersRepostedPostHandler(req: Request, res: Response, n
             return res.status(404).json({ message: "Post not found" });
         }
 
+        const condition = { originalPost: new mongoose.Types.ObjectId(postId) };
+
         // Pagination
         const skip = (Number(page) - 1) * limit;
-        const totalUsers = post.likes.length;
+        const totalUsers = await PostModel.countDocuments(condition);
         const totalPages = Math.ceil(totalUsers / limit);
 
-        const users = await UserModel.find({
-            _id: { $in: post.reposts },
-        })
+        const reposts = await PostModel.find(condition)
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .select(USER_MODEL_HIDDEN_FIELDS);
+            .populate({ path: "postBy", select: USER_MODEL_HIDDEN_FIELDS });
+            
+        const users = reposts.map(r => r.postBy).filter(u => u);
 
         return res.status(200).json({
             message: "Get users reposted post successfully",

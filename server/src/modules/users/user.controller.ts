@@ -2,6 +2,8 @@ import { NextFunction, Request, Response } from "express";
 import mongoose from "mongoose";
 
 import UserModel, { USER_MODEL_HIDDEN_FIELDS } from "./user.model";
+import { FollowModel } from "./follow.model";
+import { BlockModel } from "./block.model";
 import { FollowUserInput, followUserSchema } from "./user.schema";
 import { MediaFile } from "../posts/post.model";
 
@@ -38,7 +40,7 @@ export async function getUserHandler(_req: Request, res: Response, next: NextFun
         const user = await UserModel.findById(id).select(USER_MODEL_HIDDEN_FIELDS);
 
         // Check if currentUser is blocked by user accessing
-        const isBlocked = user?.blockedUsers.includes(new mongoose.Types.ObjectId(currentUserId));
+        const isBlocked = await BlockModel.findOne({ blocker: id, blocked: currentUserId });
 
         if (isBlocked) {
             return res.status(403).json({ message: "You are blocked by this user" });
@@ -79,15 +81,12 @@ export async function followUserHandler(req: Request, res: Response, next: NextF
             return res.status(404).json({ message: "User not found" });
         }
 
-        if (currentUser.followings.includes(userToFollow._id)) {
+        const existingFollow = await FollowModel.findOne({ follower: currentUserId, following: userId });
+        if (existingFollow) {
             return res.status(400).json({ message: "Already following this user" });
         }
 
-        currentUser.followings.push(userToFollow._id);
-        userToFollow.followers.push(currentUser._id);
-
-        await currentUser.save();
-        await userToFollow.save();
+        await FollowModel.create({ follower: currentUserId, following: userId });
 
         return res.status(200).json({ message: "User followed successfully" });
     } catch (error) {
@@ -103,21 +102,12 @@ export async function unfollowUserHandler(req: Request, res: Response, next: Nex
             return res.status(400).json({ message: "You cannot unfollow yourself" });
         }
 
-        const userToFollow = await UserModel.findById(userId);
-        const currentUser = await UserModel.findById(currentUserId);
-
-        if (!userToFollow || !currentUser) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
-        if (!currentUser.followings.includes(userToFollow._id)) {
+        const deleteResult = await FollowModel.deleteOne({ follower: currentUserId, following: userId });
+        if (deleteResult.deletedCount === 0) {
             return res.status(400).json({ message: "You are not following this user" });
         }
 
-        await UserModel.findByIdAndUpdate(currentUserId, { $pull: { followings: userId } });
-        await UserModel.findByIdAndUpdate(userId, { $pull: { followers: currentUserId } });
-
-        return res.status(200).json({ message: "User followed successfully" });
+        return res.status(200).json({ message: "User unfollowed successfully" });
     } catch (error) {
         next(error);
     }
@@ -137,17 +127,16 @@ export async function getFollowSuggestionsHandler(req: Request, res: Response, n
         }
 
         const skip = (Number(page) - 1) * limit;
+        const followingDocs = await FollowModel.find({ follower: userId }).select('following');
+        const followingIds = followingDocs.map(f => f.following);
+
         const totalUsers = await UserModel.countDocuments({
-            _id: { $ne: userId }, // Except yourself
-            followers: { $ne: userId }, // Except users followed you
-            followings: { $ne: userId }, // Except users that you followed
+            _id: { $ne: userId, $nin: followingIds }, // Except yourself and users you already follow
         });
         const totalPages = Math.ceil(totalUsers / limit);
 
         const suggestions = await UserModel.find({
-            _id: { $ne: userId }, // Except yourself
-            followers: { $ne: userId }, // Except users followed you
-            followings: { $ne: userId }, // Except users that you followed
+            _id: { $ne: userId, $nin: followingIds },
         })
             .skip(skip)
             .limit(limit)
@@ -233,17 +222,23 @@ export async function getFollowingsHandler(req: Request, res: Response, next: Ne
             return res.status(404).json({ message: "User not found" });
         }
 
-        const condition: any = { _id: { $in: user.followings } };
+        const condition: any = { follower: new mongoose.Types.ObjectId(userId) };
 
-        if (search.trim() && search.length > 0) {
-            condition["username"] = { $regex: search, $options: "i" };
-        }
-
-        const totalUsers = await UserModel.countDocuments(condition);
+        const totalUsers = await FollowModel.countDocuments(condition);
         const totalPages = Math.ceil(totalUsers / limit);
         const skip = (page - 1) * limit;
 
-        const followingUsers = await UserModel.find(condition).skip(skip).limit(limit).select(USER_MODEL_HIDDEN_FIELDS);
+        const follows = await FollowModel.find(condition)
+            .skip(skip)
+            .limit(limit)
+            .populate({
+                path: "following",
+                select: USER_MODEL_HIDDEN_FIELDS,
+                match: search.trim() ? { username: { $regex: search, $options: "i" } } : undefined
+            });
+
+        // Filter out nulls if populated match failed
+        const followingUsers = follows.map(f => f.following).filter(u => u);
 
         return res
             .status(200)
@@ -270,17 +265,22 @@ export async function getFollowersHandler(req: Request, res: Response, next: Nex
             return res.status(404).json({ message: "User not found" });
         }
 
-        const condition: any = { _id: { $in: user.followers } };
+        const condition: any = { following: new mongoose.Types.ObjectId(userId) };
 
-        if (search.trim() && search.length > 0) {
-            condition["username"] = { $regex: search, $options: "i" };
-        }
-
-        const totalUsers = await UserModel.countDocuments(condition);
+        const totalUsers = await FollowModel.countDocuments(condition);
         const totalPages = Math.ceil(totalUsers / limit);
         const skip = (page - 1) * limit;
 
-        const followerUsers = await UserModel.find(condition).skip(skip).limit(limit).select(USER_MODEL_HIDDEN_FIELDS);
+        const follows = await FollowModel.find(condition)
+            .skip(skip)
+            .limit(limit)
+            .populate({
+                path: "follower",
+                select: USER_MODEL_HIDDEN_FIELDS,
+                match: search.trim() ? { username: { $regex: search, $options: "i" } } : undefined
+            });
+
+        const followerUsers = follows.map(f => f.follower).filter(u => u);
 
         return res
             .status(200)

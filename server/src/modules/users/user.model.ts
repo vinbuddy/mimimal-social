@@ -1,4 +1,4 @@
-import { prop, getModelForClass, modelOptions, Severity, Ref, pre } from "@typegoose/typegoose";
+import { prop, getModelForClass, modelOptions, Severity, Ref, pre, index } from "@typegoose/typegoose";
 import bcrypt from "bcrypt";
 import mongoose from "mongoose";
 
@@ -17,6 +17,7 @@ export const USER_MODEL_HIDDEN_FIELDS: string = "-password -refreshToken";
     return;
 })
 @modelOptions({ schemaOptions: { collection: "users", timestamps: true }, options: { allowMixed: Severity.ALLOW } })
+@index({ username: 1 })
 export class User {
     @prop({ auto: true })
     public _id?: mongoose.Types.ObjectId;
@@ -42,17 +43,8 @@ export class User {
     @prop({ required: true, default: false })
     public isAdmin?: boolean;
 
-    @prop({ ref: () => User })
-    public followings: Ref<User>[];
-
-    @prop({ ref: () => User })
-    public followers: Ref<User>[];
-
     @prop({ required: true, default: "I am a new user" })
     public bio: string;
-
-    @prop({ required: false, default: [], ref: () => User })
-    public blockedUsers: Ref<User>[];
 
     @prop({ default: null })
     public googleId?: string;

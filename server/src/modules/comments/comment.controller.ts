@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { CreateCommentInput, createCommentSchema } from "./comment.schema";
 import { extractMentionsAndTags, replaceHrefs } from "../../shared/helpers/text-parser";
 import UserModel, { USER_MODEL_HIDDEN_FIELDS } from "../users/user.model";
+import { BlockModel } from "../users/block.model";
 import mongoose from "mongoose";
 import CommentModel from "./comment.model";
 import { RequestWithUser } from "../../shared/types/request";
@@ -60,22 +61,19 @@ export async function getCommentsByTargetHandler(_req: Request, res: Response, n
 
         // Me: Blocked some users
         const currentUserId = req.user._id?.toString();
-        const currentUser = await UserModel.findById(currentUserId);
-        const blockedUsers = currentUser?.blockedUsers ?? [];
+        const blocksByMe = await BlockModel.find({ blocker: currentUserId }).select("blocked");
+        const blockedUsers = blocksByMe.map(b => b.blocked);
 
         // Users: Blocked me
-        const blockedByUsers = await UserModel.find({
-            blockedUsers: {
-                $in: [new mongoose.Types.ObjectId(currentUserId)],
-            },
-        }).distinct("_id");
+        const blocksAgainstMe = await BlockModel.find({ blocked: currentUserId }).select("blocker");
+        const blockedByUsers = blocksAgainstMe.map(b => b.blocker);
 
         const condition = {
             target: new mongoose.Types.ObjectId(target),
             targetType: targetType,
             replyTo: null,
             $or: [
-                { commentBy: currentUser?._id }, // Include my posts
+                { commentBy: new mongoose.Types.ObjectId(currentUserId) }, // Include my posts
                 { commentBy: { $nin: [...blockedUsers, ...blockedByUsers] } }, // Exclude posts from both blocked and blocking users
             ],
         };
@@ -157,20 +155,17 @@ export async function getRepliesHandler(_req: Request, res: Response, next: Next
 
         // Me: Blocked some users
         const currentUserId = req.user._id?.toString();
-        const currentUser = await UserModel.findById(currentUserId);
-        const blockedUsers = currentUser?.blockedUsers ?? [];
+        const blocksByMe = await BlockModel.find({ blocker: currentUserId }).select("blocked");
+        const blockedUsers = blocksByMe.map(b => b.blocked);
 
         // Users: Blocked me
-        const blockedByUsers = await UserModel.find({
-            blockedUsers: {
-                $in: [new mongoose.Types.ObjectId(currentUserId)],
-            },
-        }).distinct("_id");
+        const blocksAgainstMe = await BlockModel.find({ blocked: currentUserId }).select("blocker");
+        const blockedByUsers = blocksAgainstMe.map(b => b.blocker);
 
         const condition = {
             rootComment: new mongoose.Types.ObjectId(rootComment),
             $or: [
-                { commentBy: currentUser?._id }, // Include my posts
+                { commentBy: new mongoose.Types.ObjectId(currentUserId) }, // Include my posts
                 { commentBy: { $nin: [...blockedUsers, ...blockedByUsers] } }, // Exclude posts from both blocked and blocking users
             ],
         };

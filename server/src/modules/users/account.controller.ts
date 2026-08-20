@@ -1,15 +1,17 @@
 import { NextFunction, Request, Response } from "express";
 import bcrypt from "bcrypt";
 import otpGenerator from "otp-generator";
+import mongoose from "mongoose";
 
 import { OTPInput, otpSchema } from "../auth/auth.schema";
 
 import { RequestWithUser } from "../../shared/types/request";
 import UserModel, { USER_MODEL_HIDDEN_FIELDS } from "./user.model";
+import { BlockModel } from "./block.model";
+import { FollowModel } from "./follow.model";
 import { OTPModel } from "../auth/otp.model";
 import { sendEmail } from "../../shared/helpers/email-sender";
 import { changePasswordSchema } from "./account.schema";
-import mongoose from "mongoose";
 
 export async function changePasswordHandler(_req: Request, res: Response, next: NextFunction) {
     try {
@@ -122,20 +124,17 @@ export async function blockUserHandler(_req: Request, res: Response, next: NextF
             return res.status(404).json({ message: "User not found" });
         }
 
-        if (user.blockedUsers.includes(new mongoose.Types.ObjectId(blockedUserId))) {
+        const existingBlock = await BlockModel.findOne({ blocker: userId, blocked: blockedUserId });
+        if (existingBlock) {
             return res.status(400).json({ message: "User already blocked" });
         }
 
-        user.blockedUsers.push(new mongoose.Types.ObjectId(blockedUserId));
-        await user.save();
+        await BlockModel.create({ blocker: userId, blocked: blockedUserId });
 
         // Me: un-follow user blocked
-        await UserModel.findByIdAndUpdate(userId, { $pull: { followings: blockedUserId } });
-        await UserModel.findByIdAndUpdate(blockedUserId, { $pull: { followers: userId } });
-
+        await FollowModel.deleteOne({ follower: userId, following: blockedUserId });
         // Blocked user: un-follow me
-        await UserModel.findByIdAndUpdate(blockedUserId, { $pull: { followings: userId } });
-        await UserModel.findByIdAndUpdate(userId, { $pull: { followers: blockedUserId } });
+        await FollowModel.deleteOne({ follower: blockedUserId, following: userId });
 
         return res.status(200).json({ message: "User blocked successfully" });
     } catch (error) {
@@ -156,11 +155,10 @@ export async function unblockUserHandler(_req: Request, res: Response, next: Nex
             return res.status(404).json({ message: "User not found" });
         }
 
-        if (!currentUser?.blockedUsers.includes(new mongoose.Types.ObjectId(blockedUserId))) {
+        const deleteResult = await BlockModel.deleteOne({ blocker: currentUserId, blocked: blockedUserId });
+        if (deleteResult.deletedCount === 0) {
             return res.status(400).json({ message: "User not blocked" });
         }
-
-        await UserModel.findByIdAndUpdate(currentUserId, { $pull: { blockedUsers: blockedUserId } });
 
         return res.status(200).json({ message: "User unblocked successfully" });
     } catch (error) {
@@ -183,13 +181,20 @@ export async function getBlockedUsersHandler(_req: Request, res: Response, next:
         }
 
         const skip = (Number(page) - 1) * limit;
-        const totalUsers = await UserModel.countDocuments({ _id: { $in: user.blockedUsers } });
+        const condition = { blocker: new mongoose.Types.ObjectId(userId) };
+
+        const totalUsers = await BlockModel.countDocuments(condition);
         const totalPages = Math.ceil(totalUsers / limit);
 
-        const blockedUsers = await UserModel.find({ _id: { $in: user.blockedUsers } })
+        const blocks = await BlockModel.find(condition)
             .skip(skip)
             .limit(limit)
-            .select(USER_MODEL_HIDDEN_FIELDS);
+            .populate({
+                path: "blocked",
+                select: USER_MODEL_HIDDEN_FIELDS
+            });
+
+        const blockedUsers = blocks.map(b => b.blocked).filter(u => u);
 
         return res.status(200).json({
             message: "Get blocked users successfully",
