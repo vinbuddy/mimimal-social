@@ -1,16 +1,16 @@
 import express from "express";
 
-import authRoutes from "./auth.route";
-import userRoutes from "./user.route";
-import postRoutes from "./post.route";
-import commentRoutes from "./comment.route";
-import notificationRoutes from "./notification.route";
-import searchRoutes from "./search.route";
-import messageRoutes from "./message.route";
-import conversationRoutes from "./conversation.route";
-import stickerRoutes from "./sticker.route";
-import themeRoutes from "./theme.route";
-import accountRoutes from "./account.route";
+import authRoutes from "../modules/auth/auth.route";
+import userRoutes from "../modules/users/user.route";
+import postRoutes from "../modules/posts/post.route";
+import commentRoutes from "../modules/comments/comment.route";
+import notificationRoutes from "../modules/notifications/notification.route";
+import searchRoutes from "../modules/search/search.route";
+import messageRoutes from "../modules/messages/message.route";
+import conversationRoutes from "../modules/messages/conversation.route";
+import stickerRoutes from "../modules/stickers/sticker.route";
+import themeRoutes from "../modules/themes/theme.route";
+import accountRoutes from "../modules/users/account.route";
 
 const router = express.Router();
 

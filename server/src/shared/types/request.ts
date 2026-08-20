@@ -1,5 +1,5 @@
 import { Request } from "express";
-import { User } from "../../models/user.model";
+import { User } from "../../modules/users/user.model";
 
 export interface UserToken {
     _id: string;

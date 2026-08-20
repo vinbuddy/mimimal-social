@@ -1,5 +1,5 @@
 import cloudinary from "../configs/cloudinary";
-import { MediaFile } from "../../models/post.model";
+import { MediaFile } from "../../modules/posts/post.model";
 
 type ResourceType = "image" | "video" | "raw" | "auto" | undefined;
 

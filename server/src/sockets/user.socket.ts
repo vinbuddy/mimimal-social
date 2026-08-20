@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
-import { addOnlineUser, addSocketClient, onlineUsers, socketClients } from "../services/socket.service";
-import ConversationModel from "../models/conversation.model";
+import { addOnlineUser, addSocketClient, onlineUsers, socketClients } from "../shared/services/socket.service";
+import ConversationModel from "../modules/messages/conversation.model";
 
 export default function userSocketHandler(socket: Socket) {
     socket.on("online", async (data) => {

@@ -16,7 +16,7 @@ import { errorHandler } from "./middlewares/error-handler.middleware";
 import { apiLimiter } from "./middlewares/rate-limiter.middleware";
 import router from "./routes";
 import socketHandlers from "./sockets";
-import { initializeLoginWithGoogleService } from "./services/google.service";
+import { initializeLoginWithGoogleService } from "./modules/auth/google.service";
 
 // Config server
 const app: Application = express();
